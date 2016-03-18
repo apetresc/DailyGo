@@ -6,4 +6,7 @@ android:
     - build-tools-23.0.2
     - android-23
     - extra-android-support
+    - extra-android-m2repository
     - sys-img-x86-android-23
+  licenses:
+    - android-sdk-license-.+
