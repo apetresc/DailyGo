@@ -10,6 +10,12 @@ import android.service.wallpaper.WallpaperService;
 import android.util.Log;
 import android.view.SurfaceHolder;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
+import com.apetresc.sgfstream.SGF;
+import com.apetresc.sgfstream.IncorrectFormatException;
+
 public class DailyGoWallpaperService extends WallpaperService {
     @Override
     public Engine onCreateEngine() {
@@ -26,6 +32,7 @@ public class DailyGoWallpaperService extends WallpaperService {
         };
 
         private Paint paint = new Paint();
+        private SGF sgf = new SGF();
         private boolean visible = true;
         private int width;
         private int height;
@@ -38,6 +45,15 @@ public class DailyGoWallpaperService extends WallpaperService {
         public DailyGoWallpaperEngine() {
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(DailyGoWallpaperService.this);
             prefs.registerOnSharedPreferenceChangeListener(this);
+
+            try {
+                sgf.parseSGF(new BufferedReader(new InputStreamReader(
+                        getResources().openRawResource(R.raw.simple)
+                )));
+            } catch (IncorrectFormatException ife) {
+                Log.e("DailyGo", "Failed to parse SGF", ife);
+            }
+
             handler.post(drawRunner);
         }
 
@@ -78,7 +94,7 @@ public class DailyGoWallpaperService extends WallpaperService {
                 if (canvas != null) {
                     paint.setColor(Color.WHITE);
                     paint.setTextSize(50);
-                    canvas.drawText("Hello world", 550, 550, paint);
+                    canvas.drawText(sgf.toString(), 550, 550, paint);
                 }
             } finally {
                 if (canvas != null) {
