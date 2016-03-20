@@ -43,13 +43,23 @@ public class DailyGoWallpaperService extends WallpaperService {
         private int width;
         private int height;
 
-        private int minDimension = Math.min(this.height, this.width);
-        private int gobanWidth = minDimension;
-        private int gobanXMargin = (this.width - gobanWidth) / 2;
-        private int gobanXPadding = gobanWidth / 20;
-        private int gobanHeight = minDimension;
-        private int gobanYMargin = (this.height - gobanHeight) / 2;
-        private int gobanYPadding = gobanHeight / 20;
+        private int minDimension;
+        private int gobanWidth;
+        private int gobanXMargin;
+        private int gobanXPadding;
+        private int gobanHeight;
+        private int gobanYMargin;
+        private int gobanYPadding;
+
+        private void recomputeLayout() {
+            minDimension = Math.min(this.height, this.width);
+            gobanWidth = minDimension;
+            gobanXMargin = (this.width - gobanWidth) / 2;
+            gobanXPadding = gobanWidth / 20;
+            gobanHeight = minDimension;
+            gobanYMargin = (this.height - gobanHeight) / 2;
+            gobanYPadding = gobanHeight / 20;
+        }
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences preferences, String key) {
@@ -95,6 +105,7 @@ public class DailyGoWallpaperService extends WallpaperService {
                                      int width, int height) {
             this.width = width;
             this.height = height;
+            recomputeLayout();
             super.onSurfaceChanged(holder, format, width, height);
         }
 
@@ -126,7 +137,7 @@ public class DailyGoWallpaperService extends WallpaperService {
             for (int i = 0; i < STAR_POINTS.length; i++) {
                 canvas.drawCircle(gobanXMargin + STAR_POINTS[i][0] * gobanXPadding,
                         gobanYMargin + STAR_POINTS[i][1] * gobanYPadding,
-                        gobanYPadding / 5,
+                        gobanYPadding / 7,
                         paint);
             }
 
