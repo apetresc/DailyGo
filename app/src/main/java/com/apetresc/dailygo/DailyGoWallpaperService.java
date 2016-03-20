@@ -4,6 +4,7 @@ import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.service.wallpaper.WallpaperService;
@@ -17,6 +18,11 @@ import com.apetresc.sgfstream.SGF;
 import com.apetresc.sgfstream.IncorrectFormatException;
 
 public class DailyGoWallpaperService extends WallpaperService {
+    private static final int[][] STAR_POINTS = new int[][] {
+        {4, 4}, {4, 10}, {4, 16},
+        {10, 4}, {10, 10}, {10, 16},
+        {16, 4}, {16, 10}, {16, 16}
+    };
     @Override
     public Engine onCreateEngine() {
         return new DailyGoWallpaperEngine();
@@ -36,6 +42,14 @@ public class DailyGoWallpaperService extends WallpaperService {
         private boolean visible = true;
         private int width;
         private int height;
+
+        private int minDimension = Math.min(this.height, this.width);
+        private int gobanWidth = minDimension;
+        private int gobanXMargin = (this.width - gobanWidth) / 2;
+        private int gobanXPadding = gobanWidth / 20;
+        private int gobanHeight = minDimension;
+        private int gobanYMargin = (this.height - gobanHeight) / 2;
+        private int gobanYPadding = gobanHeight / 20;
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences preferences, String key) {
@@ -84,6 +98,55 @@ public class DailyGoWallpaperService extends WallpaperService {
             super.onSurfaceChanged(holder, format, width, height);
         }
 
+        private void drawBoard(Canvas canvas) {
+            paint.setColor(Color.rgb(200, 150, 73));
+            canvas.drawRect(new Rect(
+                    gobanXMargin,
+                    gobanYMargin,
+                    gobanXMargin + gobanWidth,
+                    gobanYMargin + gobanHeight),
+                paint);
+
+            float[] gridPoints = new float[19 * 2 * 4];
+            for (int i = 0; i < 19; i++) {
+                gridPoints[i * 4] = gobanXMargin + gobanXPadding;
+                gridPoints[i * 4 + 1] = gobanYMargin + (i + 1) * gobanYPadding;
+                gridPoints[i * 4 + 2] = gobanXMargin + gobanWidth - gobanXPadding;
+                gridPoints[i * 4 + 3] = gobanYMargin + (i + 1) * gobanYPadding;
+
+                gridPoints[19 * 4 + i * 4] = gobanXMargin + (i + 1) * gobanXPadding;
+                gridPoints[19 * 4 + i * 4 + 1] = gobanYMargin + gobanYPadding;
+                gridPoints[19 * 4 + i * 4 + 2] = gobanXMargin + (i + 1) * gobanXPadding;
+                gridPoints[19 * 4 + i * 4 + 3] = gobanYMargin + gobanHeight - gobanYPadding;
+            }
+            paint.setColor(Color.BLACK);
+            paint.setStrokeWidth(3);
+            canvas.drawLines(gridPoints, paint);
+
+            for (int i = 0; i < STAR_POINTS.length; i++) {
+                canvas.drawCircle(gobanXMargin + STAR_POINTS[i][0] * gobanXPadding,
+                        gobanYMargin + STAR_POINTS[i][1] * gobanYPadding,
+                        gobanYPadding / 5,
+                        paint);
+            }
+
+        }
+
+        private void drawStones(Canvas canvas, int[][] boardPosition) {
+            for (int i = 0; i < boardPosition.length; i++) {
+                for (int j = 0; j < boardPosition[i].length; j++) {
+                    if (boardPosition[i][j] != 0) {
+                        paint.setColor(boardPosition[i][j] == 1 ? Color.BLACK : Color.WHITE);
+                        canvas.drawCircle(
+                                gobanXMargin + i * gobanXPadding,
+                                gobanYMargin + j * gobanYPadding,
+                                gobanYPadding,
+                                paint);
+                    }
+                }
+            }
+        }
+
         private void draw() {
             Log.d("DailyGo", "In draw!");
             final SurfaceHolder holder = getSurfaceHolder();
@@ -92,9 +155,7 @@ public class DailyGoWallpaperService extends WallpaperService {
             try {
                 canvas = holder.lockCanvas();
                 if (canvas != null) {
-                    paint.setColor(Color.WHITE);
-                    paint.setTextSize(50);
-                    canvas.drawText(sgf.toString(), 550, 550, paint);
+                    drawBoard(canvas);
                 }
             } finally {
                 if (canvas != null) {
