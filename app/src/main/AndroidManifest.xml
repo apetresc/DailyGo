@@ -39,8 +39,6 @@
 
     <uses-feature
         android:name="android.software.live_wallpaper"
-        android:required="true">
+        android:required="true"></uses-feature>
     <uses-permission android:name="android.permission.MANAGE_DOCUMENTS"></uses-permission>
-
-    </uses-feature>
 </manifest>

@@ -11,11 +11,15 @@ import android.service.wallpaper.WallpaperService;
 import android.util.Log;
 import android.view.SurfaceHolder;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.IOException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import com.apetresc.sgfstream.BoardPosition;
 import com.apetresc.sgfstream.SGF;
 import com.apetresc.sgfstream.IncorrectFormatException;
+import com.apetresc.sgfstream.SGFIterator;
 
 public class DailyGoWallpaperService extends WallpaperService {
     private static final int[][] STAR_POINTS = new int[][] {
@@ -39,6 +43,7 @@ public class DailyGoWallpaperService extends WallpaperService {
 
         private Paint paint = new Paint();
         private SGF sgf = new SGF();
+        private SGFIterator sgfIterator;
         private boolean visible = true;
         private int width;
         private int height;
@@ -50,6 +55,10 @@ public class DailyGoWallpaperService extends WallpaperService {
         private int gobanHeight;
         private int gobanYMargin;
         private int gobanYPadding;
+
+        BoardPosition boardPosition = null;
+
+        private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
         private void recomputeLayout() {
             minDimension = Math.min(this.height, this.width);
@@ -71,13 +80,25 @@ public class DailyGoWallpaperService extends WallpaperService {
             prefs.registerOnSharedPreferenceChangeListener(this);
 
             try {
-                sgf.parseSGF(new BufferedReader(new InputStreamReader(
-                        getResources().openRawResource(R.raw.simple)
-                )));
+                sgf.parseSGF(getResources().openRawResource(R.raw.simple));
+                sgfIterator = sgf.iterator();
+                boardPosition = new BoardPosition(19);
             } catch (IncorrectFormatException ife) {
                 Log.e("DailyGo", "Failed to parse SGF", ife);
+            } catch (IOException ioe) {
+                Log.e("DailyGo", "Failed to load SGF from stream", ioe);
             }
 
+            scheduler.scheduleAtFixedRate(new Runnable() {
+                @Override
+                public void run() {
+                    int currentMoveNumber = boardPosition.getMoveNumber();
+                    do {
+                        boardPosition.applyNode(sgfIterator.next());
+                    } while (currentMoveNumber == boardPosition.getMoveNumber());
+                    handler.post(drawRunner);
+                }
+            }, 1, 1, TimeUnit.SECONDS);
             handler.post(drawRunner);
         }
 
@@ -143,23 +164,56 @@ public class DailyGoWallpaperService extends WallpaperService {
 
         }
 
-        private void drawStones(Canvas canvas, int[][] boardPosition) {
-            for (int i = 0; i < boardPosition.length; i++) {
-                for (int j = 0; j < boardPosition[i].length; j++) {
-                    if (boardPosition[i][j] != 0) {
-                        paint.setColor(boardPosition[i][j] == 1 ? Color.BLACK : Color.WHITE);
+        private void drawStones(Canvas canvas) {
+            for (int i = 0; i < boardPosition.getBoardSize(); i++) {
+                for (int j = 0; j < boardPosition.getBoardSize(); j++) {
+                    if (boardPosition.getPoint(i, j) != 0) {
+                        paint.setColor(Color.BLACK);
                         canvas.drawCircle(
-                                gobanXMargin + i * gobanXPadding,
-                                gobanYMargin + j * gobanYPadding,
-                                gobanYPadding,
+                                gobanXMargin + (i + 1) * gobanXPadding,
+                                gobanYMargin + (j + 1) * gobanYPadding,
+                                gobanYPadding / 2,
                                 paint);
+                        if (boardPosition.getPoint(i, j) == 2) {
+                            paint.setColor(Color.WHITE);
+                            canvas.drawCircle(
+                                    gobanXMargin + (i + 1) * gobanXPadding,
+                                    gobanYMargin + (j + 1) * gobanYPadding,
+                                    gobanYPadding / 2 - 2,
+                                    paint);
+                        }
                     }
                 }
             }
+
+            int[] lastMove = boardPosition.getLastMove();
+            paint.setColor(boardPosition.getPoint(lastMove[0], lastMove[1]) == 1 ? Color.WHITE : Color.BLACK);
+            String lastMoveLabel = String.valueOf(boardPosition.getMoveNumber());
+            int textSize = findLargestTextSizeWithinBounds(lastMoveLabel, gobanXPadding * 0.75f, gobanYPadding * 0.75f);
+            Rect bounds = new Rect();
+            paint.setTextSize(textSize);
+            paint.getTextBounds(lastMoveLabel, 0, lastMoveLabel.length(), bounds);
+            canvas.drawText(String.valueOf(boardPosition.getMoveNumber()),
+                    gobanXMargin + (lastMove[0] + 1) * gobanXPadding - bounds.width() / 2,
+                    gobanYMargin + (lastMove[1] + 1) * gobanYPadding + bounds.height() / 2,
+                    paint);
+        }
+
+        private int findLargestTextSizeWithinBounds(String s, float maxHeight, float maxWidth) {
+            Paint paint = new Paint();
+            int size = 1;
+            Rect bounds = new Rect();
+            do {
+                size++;
+                paint.setTextSize(size);
+                paint.getTextBounds(s, 0, s.length(), bounds);
+            } while (bounds.width() <= maxWidth && bounds.height() <= maxHeight);
+
+            return size - 1;
         }
 
         private void draw() {
-            Log.d("DailyGo", "In draw!");
+            Log.d("DailyGo", "Drawing move #" + boardPosition.getMoveNumber());
             final SurfaceHolder holder = getSurfaceHolder();
             Canvas canvas = null;
 
@@ -167,6 +221,7 @@ public class DailyGoWallpaperService extends WallpaperService {
                 canvas = holder.lockCanvas();
                 if (canvas != null) {
                     drawBoard(canvas);
+                    drawStones(canvas);
                 }
             } finally {
                 if (canvas != null) {
