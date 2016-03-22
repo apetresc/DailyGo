@@ -12,6 +12,8 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 
 import java.io.IOException;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +22,7 @@ import com.apetresc.sgfstream.BoardPosition;
 import com.apetresc.sgfstream.SGF;
 import com.apetresc.sgfstream.IncorrectFormatException;
 import com.apetresc.sgfstream.SGFIterator;
+import com.apetresc.sgfstream.SGFNode;
 
 public class DailyGoWallpaperService extends WallpaperService {
     private static final int[][] STAR_POINTS = new int[][] {
@@ -44,6 +47,8 @@ public class DailyGoWallpaperService extends WallpaperService {
         private Paint paint = new Paint();
         private SGF sgf = new SGF();
         private SGFIterator sgfIterator;
+        private int totalNumberOfMoves = 0;
+
         private boolean visible = true;
         private int width;
         private int height;
@@ -89,17 +94,38 @@ public class DailyGoWallpaperService extends WallpaperService {
                 Log.e("DailyGo", "Failed to load SGF from stream", ioe);
             }
 
+            // Count number of moves to know how to schedule
+            SGFIterator countMovesIterator = sgf.iterator();
+            SGFNode lastNode = null;
+            while (countMovesIterator.hasNext()) {
+                lastNode = countMovesIterator.next();
+            }
+            totalNumberOfMoves = lastNode.getBoardPosition().getMoveNumber();
+            Log.v("DailyGo", "Newly loaded SGF has " + totalNumberOfMoves + " moves.");
+
             scheduler.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
-                    int currentMoveNumber = boardPosition.getMoveNumber();
-                    do {
-                        boardPosition.applyNode(sgfIterator.next());
-                    } while (currentMoveNumber == boardPosition.getMoveNumber());
                     handler.post(drawRunner);
                 }
-            }, 1, 1, TimeUnit.SECONDS);
+            }, 0, (60 * 60 * 24) / totalNumberOfMoves, TimeUnit.SECONDS);
             handler.post(drawRunner);
+        }
+
+        public void catchUp() {
+            Calendar c = Calendar.getInstance();
+            long now = c.getTimeInMillis();
+            c.set(Calendar.HOUR_OF_DAY, 0);
+            c.set(Calendar.MINUTE, 0);
+            c.set(Calendar.SECOND, 0);
+            c.set(Calendar.MILLISECOND, 0);
+            long passed = (now - c.getTimeInMillis()) / 1000;
+
+            double percentageOfDay = passed / (double) (60 * 60 * 24);
+            int shouldBeAtMove = (int) Math.ceil(percentageOfDay * totalNumberOfMoves);
+            while (boardPosition.getMoveNumber() < shouldBeAtMove) {
+                boardPosition.applyNode(sgfIterator.next());
+            }
         }
 
         @Override
@@ -131,6 +157,7 @@ public class DailyGoWallpaperService extends WallpaperService {
         }
 
         private void drawBoard(Canvas canvas) {
+            catchUp();
             paint.setColor(Color.rgb(200, 150, 73));
             canvas.drawRect(new Rect(
                     gobanXMargin,
