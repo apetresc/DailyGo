@@ -2,29 +2,27 @@ package com.apetresc.dailygo;
 
 import android.content.SharedPreferences;
 import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Rect;
 import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.service.wallpaper.WallpaperService;
 import android.util.Log;
 import android.view.SurfaceHolder;
 
+import com.apetresc.dailygo.com.apetresc.dailygo.render.GobanRenderer;
+import com.apetresc.dailygo.com.apetresc.dailygo.render.UntexturedGoban2DRenderer;
+import com.apetresc.dailygo.com.apetresc.dailygo.selector.SGFSelector;
+import com.apetresc.dailygo.com.apetresc.dailygo.selector.StaticSGFSelector;
+import com.apetresc.sgfstream.BoardPosition;
+import com.apetresc.sgfstream.IncorrectFormatException;
+import com.apetresc.sgfstream.SGF;
+import com.apetresc.sgfstream.SGFIterator;
+import com.apetresc.sgfstream.SGFNode;
+
 import java.io.IOException;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
-import com.apetresc.dailygo.com.apetresc.dailygo.render.GobanRenderer;
-import com.apetresc.dailygo.com.apetresc.dailygo.render.UntexturedGoban2DRenderer;
-import com.apetresc.sgfstream.BoardPosition;
-import com.apetresc.sgfstream.SGF;
-import com.apetresc.sgfstream.IncorrectFormatException;
-import com.apetresc.sgfstream.SGFIterator;
-import com.apetresc.sgfstream.SGFNode;
 
 public class DailyGoWallpaperService extends WallpaperService {
 
@@ -42,13 +40,10 @@ public class DailyGoWallpaperService extends WallpaperService {
             }
         };
 
-        private Paint paint = new Paint();
-        private SGF sgf = new SGF();
+        private SGFSelector sgfSelector = new StaticSGFSelector(getResources().openRawResource(R.raw.simple));
         private SGFIterator sgfIterator;
         private GobanRenderer gobanRenderer;
         private int totalNumberOfMoves = 0;
-
-        private boolean visible = true;
 
         BoardPosition boardPosition = null;
 
@@ -64,32 +59,32 @@ public class DailyGoWallpaperService extends WallpaperService {
             prefs.registerOnSharedPreferenceChangeListener(this);
 
             try {
-                sgf.parseSGF(getResources().openRawResource(R.raw.simple));
+                SGF sgf = sgfSelector.getNextSGF();
                 sgfIterator = sgf.iterator();
                 boardPosition = new BoardPosition(19);
-            } catch (IncorrectFormatException ife) {
+
+                // Count number of moves to know how to schedule
+                SGFIterator countMovesIterator = sgf.iterator();
+                SGFNode lastNode = null;
+                while (countMovesIterator.hasNext()) {
+                    lastNode = countMovesIterator.next();
+                }
+                totalNumberOfMoves = lastNode.getBoardPosition().getMoveNumber();
+                Log.v("DailyGo", "Newly loaded SGF has " + totalNumberOfMoves + " moves.");
+
+                scheduler.scheduleAtFixedRate(new Runnable() {
+                    @Override
+                    public void run() {
+                        handler.post(drawRunner);
+                    }
+                }, 0, (60 * 60 * 24) / totalNumberOfMoves, TimeUnit.SECONDS);
+                handler.post(drawRunner);
+             } catch (IncorrectFormatException ife) {
                 Log.e("DailyGo", "Failed to parse SGF", ife);
             } catch (IOException ioe) {
                 Log.e("DailyGo", "Failed to load SGF from stream", ioe);
             }
-
-            // Count number of moves to know how to schedule
-            SGFIterator countMovesIterator = sgf.iterator();
-            SGFNode lastNode = null;
-            while (countMovesIterator.hasNext()) {
-                lastNode = countMovesIterator.next();
-            }
-            totalNumberOfMoves = lastNode.getBoardPosition().getMoveNumber();
-            Log.v("DailyGo", "Newly loaded SGF has " + totalNumberOfMoves + " moves.");
-
-            scheduler.scheduleAtFixedRate(new Runnable() {
-                @Override
-                public void run() {
-                    handler.post(drawRunner);
-                }
-            }, 0, (60 * 60 * 24) / totalNumberOfMoves, TimeUnit.SECONDS);
-            handler.post(drawRunner);
-        }
+       }
 
         public void catchUp() {
             Calendar c = Calendar.getInstance();
@@ -109,7 +104,6 @@ public class DailyGoWallpaperService extends WallpaperService {
 
         @Override
         public void onVisibilityChanged(boolean visible) {
-            this.visible = visible;
             if (visible) {
                 handler.post(drawRunner);
             } else {
@@ -120,7 +114,6 @@ public class DailyGoWallpaperService extends WallpaperService {
         @Override
         public void onSurfaceDestroyed(SurfaceHolder holder) {
             super.onSurfaceDestroyed(holder);
-            this.visible = false;
             handler.removeCallbacks(drawRunner);
             SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(DailyGoWallpaperService.this);
             pref.unregisterOnSharedPreferenceChangeListener(this);
