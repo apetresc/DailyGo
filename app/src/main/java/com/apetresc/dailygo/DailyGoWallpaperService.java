@@ -13,15 +13,14 @@ import com.apetresc.dailygo.com.apetresc.dailygo.render.UntexturedGoban2DRendere
 import com.apetresc.dailygo.com.apetresc.dailygo.selector.SGFSelector;
 import com.apetresc.dailygo.com.apetresc.dailygo.selector.StaticSGFSelector;
 import com.apetresc.sgfstream.BoardPosition;
-import com.apetresc.sgfstream.IncorrectFormatException;
 import com.apetresc.sgfstream.SGF;
 import com.apetresc.sgfstream.SGFIterator;
 import com.apetresc.sgfstream.SGFNode;
 
-import java.io.IOException;
 import java.util.Calendar;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public class DailyGoWallpaperService extends WallpaperService {
@@ -43,6 +42,8 @@ public class DailyGoWallpaperService extends WallpaperService {
         private SGFSelector sgfSelector = new StaticSGFSelector(getResources().openRawResource(R.raw.simple));
         private SGFIterator sgfIterator;
         private GobanRenderer gobanRenderer;
+        private Calendar lastMovePlayed;
+        private ScheduledFuture moveTimer;
         private int totalNumberOfMoves = 0;
 
         BoardPosition boardPosition = null;
@@ -57,37 +58,49 @@ public class DailyGoWallpaperService extends WallpaperService {
         public DailyGoWallpaperEngine() {
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(DailyGoWallpaperService.this);
             prefs.registerOnSharedPreferenceChangeListener(this);
+        }
 
-            try {
-                SGF sgf = sgfSelector.getNextSGF();
-                sgfIterator = sgf.iterator();
-                boardPosition = new BoardPosition(19);
+        public void initiateSGF(SGF sgf) {
+            sgfIterator = sgf.iterator();
+            boardPosition = new BoardPosition(19);
 
-                // Count number of moves to know how to schedule
-                SGFIterator countMovesIterator = sgf.iterator();
-                SGFNode lastNode = null;
-                while (countMovesIterator.hasNext()) {
-                    lastNode = countMovesIterator.next();
-                }
-                totalNumberOfMoves = lastNode.getBoardPosition().getMoveNumber();
-                Log.v("DailyGo", "Newly loaded SGF has " + totalNumberOfMoves + " moves.");
-
-                scheduler.scheduleAtFixedRate(new Runnable() {
-                    @Override
-                    public void run() {
-                        handler.post(drawRunner);
-                    }
-                }, 0, (60 * 60 * 24) / totalNumberOfMoves, TimeUnit.SECONDS);
-                handler.post(drawRunner);
-             } catch (IncorrectFormatException ife) {
-                Log.e("DailyGo", "Failed to parse SGF", ife);
-            } catch (IOException ioe) {
-                Log.e("DailyGo", "Failed to load SGF from stream", ioe);
+            // Count number of moves to know how to schedule
+            SGFIterator countMovesIterator = sgf.iterator();
+            SGFNode lastNode = null;
+            while (countMovesIterator.hasNext()) {
+                lastNode = countMovesIterator.next();
             }
-       }
+            totalNumberOfMoves = lastNode.getBoardPosition().getMoveNumber();
+            Log.v("DailyGo", "Newly loaded SGF has " + totalNumberOfMoves + " moves.");
+
+            if (moveTimer != null) {
+                moveTimer.cancel(false);
+            }
+            moveTimer = scheduler.scheduleAtFixedRate(new Runnable() {
+                @Override
+                public void run() {
+                    handler.post(drawRunner);
+                }
+            }, 0, (60 * 60 * 24) / totalNumberOfMoves, TimeUnit.SECONDS);
+
+            handler.post(drawRunner);
+        }
 
         public void catchUp() {
             Calendar c = Calendar.getInstance();
+            if (lastMovePlayed == null || lastMovePlayed.get(Calendar.DAY_OF_YEAR) != c.get(Calendar.DAY_OF_YEAR)) {
+                // It's time to switch SGFs!
+                try {
+                    initiateSGF(sgfSelector.getNextSGF());
+                } catch (Exception e) {
+                    Log.e("DailyGo", "Failed to move to next SGF", e);
+                    try {
+                        initiateSGF(new StaticSGFSelector(getResources().openRawResource(R.raw.simple)).getNextSGF());
+                    } catch (Exception e2) {
+                        Log.e("DailyGo", "Failed to load backup SGF. This should never happen.", e);
+                    }
+                }
+            }
             long now = c.getTimeInMillis();
             c.set(Calendar.HOUR_OF_DAY, 0);
             c.set(Calendar.MINUTE, 0);
@@ -99,6 +112,7 @@ public class DailyGoWallpaperService extends WallpaperService {
             int shouldBeAtMove = (int) Math.ceil(percentageOfDay * totalNumberOfMoves);
             while (boardPosition.getMoveNumber() < shouldBeAtMove) {
                 boardPosition.applyNode(sgfIterator.next());
+                lastMovePlayed = Calendar.getInstance();
             }
         }
 
