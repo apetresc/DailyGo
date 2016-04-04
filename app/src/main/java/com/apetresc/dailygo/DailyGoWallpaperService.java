@@ -10,6 +10,8 @@ import android.view.SurfaceHolder;
 
 import com.apetresc.dailygo.com.apetresc.dailygo.render.GobanRenderer;
 import com.apetresc.dailygo.com.apetresc.dailygo.render.UntexturedGoban2DRenderer;
+import com.apetresc.dailygo.com.apetresc.dailygo.selector.PrioritySGFSelector;
+import com.apetresc.dailygo.com.apetresc.dailygo.selector.ResourceSGFSelector;
 import com.apetresc.dailygo.com.apetresc.dailygo.selector.SGFSelector;
 import com.apetresc.dailygo.com.apetresc.dailygo.selector.StaticSGFSelector;
 import com.apetresc.sgfstream.BoardPosition;
@@ -39,7 +41,10 @@ public class DailyGoWallpaperService extends WallpaperService {
             }
         };
 
-        private SGFSelector sgfSelector = new StaticSGFSelector(getResources().openRawResource(R.raw.simple));
+        private SGFSelector sgfSelector = new PrioritySGFSelector(
+                new ResourceSGFSelector(DailyGoWallpaperService.this.getApplicationContext()),
+                new StaticSGFSelector(getResources().openRawResource(R.raw.simple))
+        );
         private SGFIterator sgfIterator;
         private GobanRenderer gobanRenderer;
         private Calendar lastMovePlayed;
