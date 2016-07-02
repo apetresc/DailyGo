@@ -1,4 +1,4 @@
-package com.apetresc.dailygo.com.apetresc.dailygo.render;
+package com.apetresc.dailygo.render;
 
 import android.graphics.Canvas;
 import android.graphics.Color;

@@ -1,4 +1,4 @@
-package com.apetresc.dailygo.com.apetresc.dailygo.selector;
+package com.apetresc.dailygo.selector;
 
 import android.util.Log;
 

@@ -8,12 +8,12 @@ import android.service.wallpaper.WallpaperService;
 import android.util.Log;
 import android.view.SurfaceHolder;
 
-import com.apetresc.dailygo.com.apetresc.dailygo.render.GobanRenderer;
-import com.apetresc.dailygo.com.apetresc.dailygo.render.UntexturedGoban2DRenderer;
-import com.apetresc.dailygo.com.apetresc.dailygo.selector.PrioritySGFSelector;
-import com.apetresc.dailygo.com.apetresc.dailygo.selector.ResourceSGFSelector;
-import com.apetresc.dailygo.com.apetresc.dailygo.selector.SGFSelector;
-import com.apetresc.dailygo.com.apetresc.dailygo.selector.StaticSGFSelector;
+import com.apetresc.dailygo.render.GobanRenderer;
+import com.apetresc.dailygo.render.UntexturedGoban2DRenderer;
+import com.apetresc.dailygo.selector.PrioritySGFSelector;
+import com.apetresc.dailygo.selector.ResourceSGFSelector;
+import com.apetresc.dailygo.selector.SGFSelector;
+import com.apetresc.dailygo.selector.StaticSGFSelector;
 import com.apetresc.sgfstream.BoardPosition;
 import com.apetresc.sgfstream.SGF;
 import com.apetresc.sgfstream.SGFIterator;
